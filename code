@@ -1,0 +1,322 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <ctime>
+#include <iomanip>
+using namespace std;
+
+// ------------------ Transaction ------------------
+class Transaction {
+public:
+    int accNo;
+    string type;
+    double amount;
+    string dateTime;
+
+    Transaction(int a, string t, double amt, string dt)
+        : accNo(a), type(t), amount(amt), dateTime(dt) {}
+
+    void display() {
+        cout << left << setw(12) << type
+             << setw(12) << amount
+             << setw(25) << dateTime << endl;
+    }
+};
+
+// ------------------ Account ------------------
+class Account {
+private:
+    int accNo;
+    string name;
+    double balance;
+
+public:
+    Account(int a, string n, double b = 0)
+        : accNo(a), name(n), balance(b) {}
+
+    int getAccNo() { return accNo; }
+    string getName() { return name; }
+    double getBalance() { return balance; }
+
+    void deposit(double amt) { balance += amt; }
+
+    bool withdraw(double amt) {
+        if (amt > balance) return false;
+        balance -= amt;
+        return true;
+    }
+
+    void display() {
+        cout << left << setw(10) << accNo
+             << setw(20) << name
+             << setw(12) << fixed << setprecision(2) << balance << endl;
+    }
+};
+
+// ------------------ Bank System ------------------
+class BankSystem {
+private:
+    vector<Account> accounts;
+    vector<Transaction> transactions;
+
+    string getDateTime() {
+        time_t now = time(0);
+        char* dt = ctime(&now);
+        return string(dt);
+    }
+
+    Account* findAccount(int accNo) {
+        for (auto &acc : accounts)
+            if (acc.getAccNo() == accNo)
+                return &acc;
+        return nullptr;
+    }
+
+public:
+    // -------- File Handling --------
+    void loadData() {
+        ifstream accFile("accounts.txt");
+        ifstream transFile("transactions.txt");
+
+        int a;
+        string n;
+        double b;
+
+        while (accFile >> a >> n >> b)
+            accounts.push_back(Account(a, n, b));
+
+        int accNo;
+        string type, dt;
+        double amt;
+
+        while (transFile >> accNo >> type >> amt) {
+            getline(transFile, dt);
+            transactions.push_back(Transaction(accNo, type, amt, dt));
+        }
+    }
+
+    void saveData() {
+        ofstream accFile("accounts.txt");
+        ofstream transFile("transactions.txt");
+
+        for (auto &acc : accounts)
+            accFile << acc.getAccNo() << " "
+                    << acc.getName() << " "
+                    << acc.getBalance() << endl;
+
+        for (auto &t : transactions)
+            transFile << t.accNo << " "
+                      << t.type << " "
+                      << t.amount << " "
+                      << t.dateTime;
+    }
+
+    // -------- UI Helpers --------
+    void line() {
+        cout << "------------------------------------------------------------\n";
+    }
+
+    void header(string title) {
+        line();
+        cout << title << endl;
+        line();
+    }
+
+    // -------- Operations --------
+    void createAccount() {
+        header("CREATE ACCOUNT");
+
+        int accNo;
+        string name;
+
+        cout << "Account Number : ";
+        cin >> accNo;
+
+        if (findAccount(accNo)) {
+            cout << "Error: Account already exists.\n";
+            return;
+        }
+
+        cout << "Name           : ";
+        cin >> name;
+
+        accounts.push_back(Account(accNo, name));
+        cout << "Account created successfully.\n";
+    }
+
+    void deposit() {
+        header("DEPOSIT");
+
+        int accNo;
+        double amt;
+
+        cout << "Account Number : ";
+        cin >> accNo;
+
+        Account* acc = findAccount(accNo);
+        if (!acc) {
+            cout << "Error: Account not found.\n";
+            return;
+        }
+
+        cout << "Amount         : ";
+        cin >> amt;
+
+        acc->deposit(amt);
+        transactions.push_back(Transaction(accNo, "Deposit", amt, getDateTime()));
+
+        cout << "Deposit successful.\n";
+    }
+
+    void withdraw() {
+        header("WITHDRAW");
+
+        int accNo;
+        double amt;
+
+        cout << "Account Number : ";
+        cin >> accNo;
+
+        Account* acc = findAccount(accNo);
+        if (!acc) {
+            cout << "Error: Account not found.\n";
+            return;
+        }
+
+        cout << "Amount         : ";
+        cin >> amt;
+
+        if (!acc->withdraw(amt)) {
+            cout << "Error: Insufficient balance.\n";
+            return;
+        }
+
+        transactions.push_back(Transaction(accNo, "Withdraw", amt, getDateTime()));
+
+        cout << "Withdrawal successful.\n";
+    }
+
+    void balanceEnquiry() {
+        header("BALANCE ENQUIRY");
+
+        int accNo;
+        cout << "Account Number : ";
+        cin >> accNo;
+
+        Account* acc = findAccount(accNo);
+        if (!acc) {
+            cout << "Error: Account not found.\n";
+            return;
+        }
+
+        cout << "\nCurrent Balance : "
+             << fixed << setprecision(2)
+             << acc->getBalance() << endl;
+    }
+
+    void lastTransactions() {
+        header("LAST 5 TRANSACTIONS");
+
+        int accNo;
+        cout << "Account Number : ";
+        cin >> accNo;
+
+        cout << endl;
+        cout << left << setw(12) << "Type"
+             << setw(12) << "Amount"
+             << setw(25) << "Date & Time" << endl;
+
+        line();
+
+        int count = 0;
+        for (int i = transactions.size() - 1; i >= 0 && count < 5; i--) {
+            if (transactions[i].accNo == accNo) {
+                transactions[i].display();
+                count++;
+            }
+        }
+
+        if (count == 0)
+            cout << "No transactions found.\n";
+    }
+
+    // -------- Reports --------
+    void totalMoney() {
+        header("TOTAL MONEY IN BANK");
+
+        double total = 0;
+        for (auto &acc : accounts)
+            total += acc.getBalance();
+
+        cout << "Total Amount : "
+             << fixed << setprecision(2)
+             << total << endl;
+    }
+
+    void lowBalanceReport() {
+        header("LOW BALANCE REPORT");
+
+        double threshold;
+        cout << "Enter Threshold : ";
+        cin >> threshold;
+
+        cout << endl;
+        cout << left << setw(10) << "AccNo"
+             << setw(20) << "Name"
+             << setw(12) << "Balance" << endl;
+
+        line();
+
+        for (auto &acc : accounts) {
+            if (acc.getBalance() < threshold)
+                acc.display();
+        }
+    }
+
+    // -------- Menu --------
+    void menu() {
+        int choice;
+
+        do {
+            header("MINI BANKING SYSTEM");
+
+            cout << "1. Create Account\n";
+            cout << "2. Deposit\n";
+            cout << "3. Withdraw\n";
+            cout << "4. Balance Enquiry\n";
+            cout << "5. Last 5 Transactions\n";
+            cout << "6. Total Money Report\n";
+            cout << "7. Low Balance Report\n";
+            cout << "8. Exit\n";
+
+            line();
+            cout << "Enter Choice : ";
+            cin >> choice;
+
+            switch (choice) {
+                case 1: createAccount(); break;
+                case 2: deposit(); break;
+                case 3: withdraw(); break;
+                case 4: balanceEnquiry(); break;
+                case 5: lastTransactions(); break;
+                case 6: totalMoney(); break;
+                case 7: lowBalanceReport(); break;
+                case 8:
+                    saveData();
+                    cout << "\nData saved. Exiting program.\n";
+                    break;
+                default:
+                    cout << "Invalid choice.\n";
+            }
+
+        } while (choice != 8);
+    }
+};
+
+// ------------------ Main ------------------
+int main() {
+    BankSystem bank;
+    bank.loadData();
+    bank.menu();
+    return 0;
+}
